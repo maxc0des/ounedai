@@ -1,0 +1,20 @@
+{
+  "name": "ounedai",
+  "version": "1.0.0",
+  "description": "a website that only works one day a year",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "express": "^5.1.0",
+    "node-cron": "^4.2.1",
+    "node-schedule": "^2.1.1",
+    "socket.io": "^4.8.1",
+    "sqlite3": "^5.1.7",
+    "winston": "^3.17.0"
+  }
+}
