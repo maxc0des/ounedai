@@ -4,6 +4,7 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const log = require('./logger');
+const fs = require('fs');
 
 const app = express();
 const http = require('http').createServer(app);
@@ -30,10 +31,11 @@ db.run(`
 `);
 
 // Variables
-let current_month = null;
-let working_date = null;
-let last_time = new Date();
-log.info(`Initial last_time set to: ${last_time.toString()}`);
+const vars = get_vars();
+let working_date = vars.set_working_date;
+let last_time = vars.set_last_time;
+let current_month = vars.set_current_month;
+check_month();
 
 // Generate a random date in the current local month
 function generate_date() {
@@ -54,6 +56,8 @@ function check_month() {
     if (month !== current_month || current_month === null) {
         current_month = month;
         working_date = generate_date();
+        change_var('current_month', current_month);
+        change_var('working_day', working_date);
         //uncomment for debugging:
         //working_date = new Date();
         log.info(`Month changed or initialized. New working date: ${working_date.toString()}`);
@@ -62,13 +66,43 @@ function check_month() {
     }
 }
 
-// Initial check
-check_month();
+//get vars from json, so thy dont get lost if the server restarts
+function get_vars(){
+    try {
+        const data = JSON.parse(fs.readFileSync('./data.json', 'utf8'));
+        const set_working_date = new Date(data.working_day);
+        const set_last_time = new Date(data.last_time);
+        const set_current_month = typeof data.current_month === 'number'
+            ? data.current_month
+            : new Date(data.current_month).getMonth();
+        return {set_working_date, set_last_time, set_current_month};
+    } catch (e) {
+        log.warn('data.json nicht gefunden oder fehlerhaft, Standardwerte werden gesetzt');
+        const now = new Date();
+        return {
+            set_working_date: now,
+            set_last_time: now,
+            set_current_month: now.getMonth()
+        };
+    }
+}
+
+function change_var(variable, value) {
+    const data = JSON.parse(fs.readFileSync('./data.json', 'utf8'));
+    data[variable] = value;
+    fs.writeFileSync('./data.json', JSON.stringify(data, null, 4));
+    log.info(`Updated ${variable} to ${value}`);
+}
 
 // Run check_month() every day at midnight local time
 cron.schedule('0 0 * * *', () => {
     log.info('Running scheduled month check...');
     check_month();
+    if (new Date().getDate() === working_date.getDate()) {
+        last_time = new Date();
+        change_var('last_time', last_time);
+        log.info(`Updated last_time to ${last_time.toString()}`);
+    }
 });
 
 // Static middleware for conditional content
@@ -82,7 +116,6 @@ app.use((req, res, next) => {
     const working_day = working_date.getDate();
 
     if (current_day === working_day) {
-        last_time = new Date();
         log.debug(`It's the working date. Serving day content. Last time updated: ${last_time.toString()}`);
         return dayStatic(req, res, next);
     } else {
